@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PhotoPDF — Fotoğraftan PDF'e</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
@@ -499,6 +500,28 @@
       transform: none;
     }
 
+    .btn-secondary {
+      background: linear-gradient(135deg, #1e3a5f, #164e63);
+      color: #7dd3fc;
+      box-shadow: 0 4px 24px rgba(56,189,248,0.2);
+      border: 1px solid rgba(56,189,248,0.2);
+    }
+
+    .btn-secondary:hover {
+      box-shadow: 0 8px 32px rgba(56,189,248,0.35);
+      transform: translateY(-1px);
+      border-color: rgba(56,189,248,0.4);
+    }
+
+    .btn-secondary:disabled {
+      background: rgba(255,255,255,0.06);
+      color: var(--muted);
+      box-shadow: none;
+      border-color: transparent;
+      cursor: not-allowed;
+      transform: none;
+    }
+
     .btn-ghost {
       background: var(--glass);
       backdrop-filter: blur(10px);
@@ -703,6 +726,10 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         PDF Oluştur &amp; İndir
       </button>
+      <button class="btn btn-secondary" id="zip-btn" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/><rect x="9" y="2" width="6" height="4" rx="1"/></svg>
+        ZIP Oluştur &amp; İndir
+      </button>
       <button class="btn btn-ghost" id="clear-btn">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
         Temizle
@@ -731,6 +758,7 @@
     const previewSec = document.getElementById('preview-section');
     const grid       = document.getElementById('preview-grid');
     const convertBtn = document.getElementById('convert-btn');
+    const zipBtn     = document.getElementById('zip-btn');
     const clearBtn   = document.getElementById('clear-btn');
     const countBadge = document.getElementById('count-badge');
     const progWrap   = document.getElementById('progress-wrap');
@@ -807,6 +835,7 @@
       const has = images.length > 0;
       previewSec.style.display = has ? 'block' : 'none';
       convertBtn.disabled = !has;
+      zipBtn.disabled = !has;
       countBadge.textContent = images.length;
     }
 
@@ -888,6 +917,53 @@
       progBar.style.width = '0%';
       convertBtn.disabled = false;
       showToast(`✅  ${images.length} sayfalık PDF indirildi!`, 'success');
+    });
+
+    // ── ZIP ───────────────────────────────────────────────────
+    zipBtn.addEventListener('click', async () => {
+      if (!images.length) return;
+
+      zipBtn.disabled = true;
+      progWrap.style.display = 'block';
+
+      const zip = new JSZip();
+      const folder = zip.folder('fotograflar');
+
+      for (let i = 0; i < images.length; i++) {
+        progLabel.textContent = `ZIP: ${i+1} / ${images.length} ekleniyor…`;
+        const pct = Math.round((i / images.length) * 100);
+        progBar.style.width = pct + '%';
+        progPct.textContent = pct + '%';
+        await new Promise(r => setTimeout(r, 0));
+
+        const dataUrl = images[i].dataUrl;
+        const ext = dataUrl.startsWith('data:image/png') ? 'png' : 'jpg';
+        const base64 = dataUrl.split(',')[1];
+        const filename = `foto_${String(i+1).padStart(3,'0')}.${ext}`;
+        folder.file(filename, base64, { base64: true });
+      }
+
+      progLabel.textContent = 'ZIP oluşturuluyor…';
+      progBar.style.width = '95%';
+      progPct.textContent = '95%';
+
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `fotograflar_${new Date().toISOString().slice(0,10)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
+
+      progBar.style.width = '100%';
+      progPct.textContent = '100%';
+      await new Promise(r => setTimeout(r, 120));
+
+      progWrap.style.display = 'none';
+      progBar.style.width = '0%';
+      zipBtn.disabled = false;
+      showToast(`🗜️  ${images.length} fotoğraf ZIP olarak indirildi!`, 'success');
     });
 
     function getImageDimensions(dataUrl) {
