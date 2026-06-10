@@ -874,7 +874,15 @@
       progLabel.textContent = 'PDF kaydediliyor…';
       await new Promise(r => setTimeout(r, 120));
 
-      pdf.save(`fotograflar_${new Date().toISOString().slice(0,10)}.pdf`);
+      const filename = `fotograflar_${new Date().toISOString().slice(0,10)}.pdf`;
+      const blob = pdf.output('blob');
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
 
       progWrap.style.display = 'none';
       progBar.style.width = '0%';
